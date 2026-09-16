@@ -37,6 +37,7 @@ def build_context(name: str, flavor: Flavor) -> dict[str, object]:
     """Build the template context for a service."""
     return {
         "service_name": name,
+        "service_slug": name.replace("-", "_"),
         "flavor": flavor.name,
         "language": flavor.language,
         "port": flavor.default_port,

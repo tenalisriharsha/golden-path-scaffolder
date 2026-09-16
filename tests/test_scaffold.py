@@ -1,7 +1,18 @@
 import pytest
 
 from goldpath.flavors import get_flavor
-from goldpath.scaffold import ScaffoldError, scaffold_service, validate_service_name
+from goldpath.scaffold import (
+    ScaffoldError,
+    build_context,
+    scaffold_service,
+    validate_service_name,
+)
+
+
+def test_build_context_derives_metric_safe_slug():
+    context = build_context("orders-api", get_flavor("fastapi"))
+    assert context["service_slug"] == "orders_api"
+    assert context["service_name"] == "orders-api"
 
 
 def test_validate_service_name_accepts_dns_style():
@@ -21,12 +32,46 @@ def test_scaffold_fastapi_service(tmp_path):
     assert root.is_dir()
     assert (root / "app" / "main.py").is_file()
     assert (root / "requirements.txt").is_file()
-    assert len(written) == 4
+    assert len(written) == 10
 
     main = (root / "app" / "main.py").read_text()
     assert 'title="orders-api"' in main
     assert '"orders-api"' in main
     assert "{{" not in main  # nothing left unrendered
+
+
+def test_scaffold_fastapi_production_set(tmp_path):
+    scaffold_service("orders-api", get_flavor("fastapi"), tmp_path)
+    root = tmp_path / "orders-api"
+
+    assert (root / "Dockerfile").is_file()
+    assert (root / ".dockerignore").is_file()
+    assert (root / ".github" / "workflows" / "ci.yml").is_file()
+    assert (root / "requirements-dev.txt").is_file()
+    assert (root / "tests" / "test_health.py").is_file()
+    assert (root / "conftest.py").is_file()
+
+    main = (root / "app" / "main.py").read_text()
+    assert "prometheus_client" in main
+    assert "orders_api_requests_total" in main
+    assert '"/metrics"' in main
+
+    dockerfile = (root / "Dockerfile").read_text()
+    assert "FROM python:3.12-slim AS builder" in dockerfile
+    assert "USER appuser" in dockerfile
+    assert "EXPOSE 8000" in dockerfile
+    assert "{{" not in dockerfile
+
+    ci = (root / ".github" / "workflows" / "ci.yml").read_text()
+    assert "pytest" in ci
+    assert "ruff check" in ci
+    assert "docker build" in ci
+    assert "{{" not in ci
+
+    test_health = (root / "tests" / "test_health.py").read_text()
+    assert "/healthz" in test_health
+    assert "orders_api_requests_total" in test_health
+    assert "{{" not in test_health
 
 
 def test_scaffold_go_service(tmp_path):
