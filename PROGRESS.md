@@ -52,11 +52,11 @@ Design decisions:
         with `/healthz`, README, dependency manifest)
   - [x] CLI: `goldpath list`, `goldpath new <name> --flavor <f>`
   - [x] Full pytest suite, all green
-- [ ] **Phase 2 — FastAPI flavor, production set** (Night 2)
-  - [ ] Dockerfile (multi-stage, non-root), requirements pinned
-  - [ ] GitHub Actions CI workflow (lint, test, build)
-  - [ ] pytest setup inside the generated service
-  - [ ] Prometheus metrics endpoint (prometheus-client)
+- [x] **Phase 2 — FastAPI flavor, production set** (Night 2)
+  - [x] Dockerfile (multi-stage, non-root), requirements pinned
+  - [x] GitHub Actions CI workflow (lint, test, build)
+  - [x] pytest setup inside the generated service
+  - [x] Prometheus metrics endpoint (prometheus-client)
 - [ ] **Phase 3 — Go flavor, production set** (Night 3)
   - [ ] Dockerfile (distroless, multi-stage), go.mod
   - [ ] GitHub Actions CI workflow (vet, test, build)
@@ -71,14 +71,51 @@ Design decisions:
   - [ ] README quickstart with real generated output
   - [ ] Final test pass, example generation, release prep
 
-## Resume here (Night 2)
+## Resume here (Night 3)
 
-Phase 1 is complete and tested (35 tests, all passing). Tomorrow night:
+Phase 2 is complete and tested (37 tests, all passing). The FastAPI flavor
+now generates the full production set:
 
-1. Start Phase 2: expand `src/goldpath/templates/fastapi/` with the full
-   production set — Dockerfile, `.github/workflows/ci.yml`, tests dir,
-   Prometheus metrics in `app/main.py`.
-2. Add tests in `tests/test_scaffold.py` asserting the new files render and
-   contain the expected content (health endpoint, metrics route, image name).
-3. Keep the zero-dependency rule for the *scaffolder*; dependencies like
-   `prometheus-client` belong to the *generated* service only.
+- `Dockerfile` (multi-stage, non-root `appuser`, `EXPOSE {{ port }}`)
+- `.dockerignore`
+- `.github/workflows/ci.yml` (install deps, `ruff check`, `pytest`,
+  `docker build`)
+- `requirements-dev.txt` (pytest, httpx, ruff) alongside the runtime
+  `requirements.txt` (now also pins `prometheus-client`)
+- `conftest.py` at the generated service root so `tests/` can `import app`
+- `app/main.py` gained a request-counting middleware
+  (`Counter("<service_slug>_requests_total", ...)`) and a `GET /metrics`
+  endpoint returning Prometheus exposition format
+- `tests/test_health.py` exercising both `/healthz` and `/metrics`
+
+New context variable: `service_slug` (`build_context` in `scaffold.py`) —
+the service name with hyphens replaced by underscores, since Prometheus
+metric names can't contain hyphens. Verified manually: generated a service
+into `/tmp`, installed its requirements, ran its own `pytest` and
+`ruff check` inside a fresh venv — both green.
+
+Packaging gotcha found and fixed: setuptools' `package-data` glob
+(`templates/**/*`) silently drops dotfiles and dot-directories (`.dockerignore`,
+`.github/workflows/ci.yml`) — Python's `glob` module never matches hidden
+entries via `*`, even recursively. Confirmed by building a wheel and
+inspecting it; the new files were missing. Fixed by adding `MANIFEST.in`
+(`recursive-include src/goldpath/templates *`) plus
+`include-package-data = true` in `pyproject.toml`, then re-verified the
+built wheel contains all 10 fastapi template files. Any future flavor with
+dotfiles (the Go flavor will need `.github/workflows/`) is covered by the
+same fix — no per-flavor changes needed.
+
+Tomorrow night:
+
+1. Start Phase 3: bring the Go flavor (`src/goldpath/templates/go/`) up to
+   the same production set — Dockerfile (distroless, multi-stage),
+   `.github/workflows/ci.yml` (vet, test, build), a Go test file
+   (`cmd/server/main_test.go` or similar) and a Prometheus metrics endpoint
+   via `promhttp`.
+2. Decide how to expose a metric-safe identifier for Go (mirror
+   `service_slug`, though Go metric names use underscores too so the same
+   context variable should work as-is).
+3. Add tests in `tests/test_scaffold.py` mirroring the FastAPI production-set
+   test added tonight (`test_scaffold_fastapi_production_set`).
+4. Keep the zero-dependency rule for the *scaffolder*; dependencies like
+   `prometheus-client` or `promhttp` belong to the *generated* service only.
