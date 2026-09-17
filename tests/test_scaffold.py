@@ -83,6 +83,44 @@ def test_scaffold_go_service(tmp_path):
     assert (root / "go.mod").read_text().startswith("module payments")
 
 
+def test_scaffold_go_production_set(tmp_path):
+    written = scaffold_service("payments", get_flavor("go"), tmp_path)
+    root = tmp_path / "payments"
+
+    assert (root / "Dockerfile").is_file()
+    assert (root / ".dockerignore").is_file()
+    assert (root / ".github" / "workflows" / "ci.yml").is_file()
+    assert (root / "cmd" / "server" / "main_test.go").is_file()
+    assert (root / "go.sum").is_file()
+    assert len(written) == 8
+
+    main = (root / "cmd" / "server" / "main.go").read_text()
+    assert "promhttp" in main
+    assert "payments_requests_total" in main
+    assert "GET /metrics" in main
+    assert "{{" not in main
+
+    dockerfile = (root / "Dockerfile").read_text()
+    assert "FROM golang:1.25 AS builder" in dockerfile
+    assert "distroless" in dockerfile
+    assert "EXPOSE 8080" in dockerfile
+    assert "{{" not in dockerfile
+
+    ci = (root / ".github" / "workflows" / "ci.yml").read_text()
+    assert "go vet" in ci
+    assert "go test" in ci
+    assert "docker build" in ci
+    assert "{{" not in ci
+
+    main_test = (root / "cmd" / "server" / "main_test.go").read_text()
+    assert "/healthz" in main_test
+    assert "payments_requests_total" in main_test
+    assert "{{" not in main_test
+
+    go_mod = (root / "go.mod").read_text()
+    assert "prometheus/client_golang" in go_mod
+
+
 def test_scaffold_renders_port_and_health_path(tmp_path):
     scaffold_service("web", get_flavor("fastapi"), tmp_path)
     readme = (tmp_path / "web" / "README.md").read_text()

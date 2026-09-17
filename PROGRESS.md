@@ -57,11 +57,11 @@ Design decisions:
   - [x] GitHub Actions CI workflow (lint, test, build)
   - [x] pytest setup inside the generated service
   - [x] Prometheus metrics endpoint (prometheus-client)
-- [ ] **Phase 3 — Go flavor, production set** (Night 3)
-  - [ ] Dockerfile (distroless, multi-stage), go.mod
-  - [ ] GitHub Actions CI workflow (vet, test, build)
-  - [ ] Go test setup inside the generated service
-  - [ ] Prometheus metrics endpoint (promhttp)
+- [x] **Phase 3 — Go flavor, production set** (Night 3)
+  - [x] Dockerfile (distroless, multi-stage), go.mod
+  - [x] GitHub Actions CI workflow (vet, test, build)
+  - [x] Go test setup inside the generated service
+  - [x] Prometheus metrics endpoint (promhttp)
 - [ ] **Phase 4 — Platform assets** (Night 4)
   - [ ] Kubernetes manifests (deployment, service, probes, resources)
   - [ ] Grafana dashboard JSON per flavor
@@ -71,51 +71,66 @@ Design decisions:
   - [ ] README quickstart with real generated output
   - [ ] Final test pass, example generation, release prep
 
-## Resume here (Night 3)
+## Resume here (Night 4)
 
-Phase 2 is complete and tested (37 tests, all passing). The FastAPI flavor
-now generates the full production set:
+Phase 3 is complete and tested (38 tests, all passing). The Go flavor now
+generates the full production set, mirroring FastAPI's:
 
-- `Dockerfile` (multi-stage, non-root `appuser`, `EXPOSE {{ port }}`)
+- `Dockerfile` (multi-stage: `golang:1.25` builder → `gcr.io/distroless/
+  static-debian12` runtime, `CGO_ENABLED=0`, `EXPOSE {{ port }}`)
 - `.dockerignore`
-- `.github/workflows/ci.yml` (install deps, `ruff check`, `pytest`,
+- `.github/workflows/ci.yml` (`go vet`, `go test`, `go build`,
   `docker build`)
-- `requirements-dev.txt` (pytest, httpx, ruff) alongside the runtime
-  `requirements.txt` (now also pins `prometheus-client`)
-- `conftest.py` at the generated service root so `tests/` can `import app`
-- `app/main.py` gained a request-counting middleware
-  (`Counter("<service_slug>_requests_total", ...)`) and a `GET /metrics`
-  endpoint returning Prometheus exposition format
-- `tests/test_health.py` exercising both `/healthz` and `/metrics`
+- `go.mod` + `go.sum` pinning `github.com/prometheus/client_golang v1.24.1`
+  and its transitive deps — a real, verified dependency graph, not a stub
+- `cmd/server/main.go` gained a `countRequests` middleware (wraps
+  `http.Handler`, records status via a `statusRecorder`) feeding a
+  `promauto.NewCounterVec("<service_slug>_requests_total", ...)` labeled by
+  path/method/status_code, and a `GET /metrics` endpoint via
+  `promhttp.Handler()`
+- `cmd/server/main_test.go` exercising both `/healthz` and `/metrics` with
+  `httptest`
 
-New context variable: `service_slug` (`build_context` in `scaffold.py`) —
-the service name with hyphens replaced by underscores, since Prometheus
-metric names can't contain hyphens. Verified manually: generated a service
-into `/tmp`, installed its requirements, ran its own `pytest` and
-`ruff check` inside a fresh venv — both green.
+No new context variables needed — `service_slug` (added in Phase 2) already
+covers Go's underscore-only metric name requirement.
 
-Packaging gotcha found and fixed: setuptools' `package-data` glob
-(`templates/**/*`) silently drops dotfiles and dot-directories (`.dockerignore`,
-`.github/workflows/ci.yml`) — Python's `glob` module never matches hidden
-entries via `*`, even recursively. Confirmed by building a wheel and
-inspecting it; the new files were missing. Fixed by adding `MANIFEST.in`
-(`recursive-include src/goldpath/templates *`) plus
-`include-package-data = true` in `pyproject.toml`, then re-verified the
-built wheel contains all 10 fastapi template files. Any future flavor with
-dotfiles (the Go flavor will need `.github/workflows/`) is covered by the
-same fix — no per-flavor changes needed.
+Verified for real, not just by inspection: installed Go 1.27.1 via
+`brew install go` (network was available in this environment). Generated a
+service into `/tmp`, then ran `go vet ./...`, `go test ./... -v` (both
+`TestHealth` and `TestMetrics` pass), and `go build` — all using only the
+vendored `go.sum`, no `go mod tidy` needed at generation time. Also ran the
+built binary directly and curled `/healthz` and `/metrics` to confirm the
+counter increments and exposition format is correct. Rebuilt the wheel and
+confirmed all 8 Go template files — including the two dotfile paths
+(`.dockerignore`, `.github/workflows/ci.yml`) — are present, so the Phase 2
+packaging fix (`MANIFEST.in`) covers this flavor with no changes.
+
+Design note: went with a hand-written `countRequests` middleware instead of
+reaching for a routing library, since `net/http`'s `http.ServeMux` (Go
+1.22+, method+path patterns) is enough — keeps the generated service's own
+dependency footprint to exactly one third-party module
+(`prometheus/client_golang`), same spirit as FastAPI pulling in only
+`prometheus-client`.
+
+Docker build itself was not verified (no local Docker daemon in this
+environment) — only `go build` of the binary. If Docker becomes available,
+worth a one-time check that the distroless image actually runs the binary.
 
 Tomorrow night:
 
-1. Start Phase 3: bring the Go flavor (`src/goldpath/templates/go/`) up to
-   the same production set — Dockerfile (distroless, multi-stage),
-   `.github/workflows/ci.yml` (vet, test, build), a Go test file
-   (`cmd/server/main_test.go` or similar) and a Prometheus metrics endpoint
-   via `promhttp`.
-2. Decide how to expose a metric-safe identifier for Go (mirror
-   `service_slug`, though Go metric names use underscores too so the same
-   context variable should work as-is).
-3. Add tests in `tests/test_scaffold.py` mirroring the FastAPI production-set
-   test added tonight (`test_scaffold_fastapi_production_set`).
-4. Keep the zero-dependency rule for the *scaffolder*; dependencies like
-   `prometheus-client` or `promhttp` belong to the *generated* service only.
+1. Start Phase 4: Kubernetes manifests (`deployment.yaml`, `service.yaml`,
+   liveness/readiness probes wired to `{{ health_path }}`, resource
+   requests/limits) and a Grafana dashboard JSON per flavor, both driven off
+   the existing context variables (`service_name`, `service_slug`, `port`,
+   `health_path`).
+2. This is the first phase that will actually exercise the engine's
+   `{% if %}` conditionals for real (e.g. an optional `--with-k8s` or
+   flavor-specific dashboard panel differences) — so far every template has
+   been unconditional. Check whether `scaffold_service`/`build_context`
+   need a new boolean context flag, or whether flavor differences alone are
+   enough.
+3. Add tests in `tests/test_scaffold.py` for the k8s/Grafana file set per
+   flavor, following the same "assert file exists, assert rendered content,
+   assert no leftover `{{`" pattern as the two production-set tests.
+4. Keep manifests generic/portable — no cloud-specific annotations unless
+   flagged as an explicit option.

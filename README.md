@@ -23,8 +23,8 @@ plan, and exactly where the build resumes next.
 | Dockerfile + GitHub Actions CI (FastAPI) | ✅ Phase 2 |
 | Test setup inside the generated service (FastAPI) | ✅ Phase 2 |
 | Prometheus metrics endpoint (FastAPI) | ✅ Phase 2 |
-| Dockerfile + GitHub Actions CI (Go) | Phase 3 |
-| Test setup + Prometheus metrics (Go) | Phase 3 |
+| Dockerfile + GitHub Actions CI (Go) | ✅ Phase 3 |
+| Test setup + Prometheus metrics (Go) | ✅ Phase 3 |
 | Kubernetes manifests + Grafana dashboard JSON | Phase 4 |
 | Golden path philosophy docs | Phase 5 |
 
@@ -56,6 +56,25 @@ orders-api/
 
 Every request the generated service handles is counted in a
 `<service>_requests_total` Prometheus counter, exposed on `GET /metrics`.
+
+A generated Go service now includes the equivalent production set:
+
+```
+orders-api/
+├── Dockerfile               # multi-stage build, distroless runtime image
+├── .dockerignore
+├── .github/workflows/ci.yml # vet, test, build, docker build on push/PR
+├── README.md
+├── go.mod                   # module + github.com/prometheus/client_golang
+├── go.sum
+└── cmd/server/
+    ├── main.go               # /healthz + /metrics (promhttp) endpoints
+    └── main_test.go
+```
+
+The Go and FastAPI production sets expose the same request-counter metric
+convention: `<service>_requests_total`, labeled by path, method, and status
+code.
 
 ## Development
 
