@@ -33,7 +33,11 @@ def validate_service_name(name: str) -> str:
     return name
 
 
-def build_context(name: str, flavor: Flavor) -> dict[str, object]:
+# Template subtrees that are only written when the platform-asset flag is on.
+_K8S_DIRS = ("k8s", "grafana")
+
+
+def build_context(name: str, flavor: Flavor, *, with_k8s: bool = True) -> dict[str, object]:
     """Build the template context for a service."""
     return {
         "service_name": name,
@@ -42,6 +46,7 @@ def build_context(name: str, flavor: Flavor) -> dict[str, object]:
         "language": flavor.language,
         "port": flavor.default_port,
         "health_path": flavor.health_path,
+        "with_k8s": with_k8s,
     }
 
 
@@ -51,12 +56,17 @@ def scaffold_service(
     output_dir: Path | str,
     *,
     template_root: Path | None = None,
+    with_k8s: bool = True,
 ) -> list[Path]:
     """Generate a new service named *name* from *flavor* into *output_dir*.
 
     The service is written to ``output_dir / name``. Every file in the
     flavor's template tree is rendered through the template engine; the
     relative path structure is preserved.
+
+    If *with_k8s* is false, the Kubernetes manifests and Grafana dashboard
+    (the ``k8s/`` and ``grafana/`` subtrees) are skipped, and any
+    ``{% if with_k8s %}`` sections in other templates render empty.
 
     Returns the sorted list of written file paths.
     """
@@ -69,12 +79,14 @@ def scaffold_service(
     if target.exists():
         raise ScaffoldError(f"target directory already exists: {target}")
 
-    context = build_context(name, flavor)
+    context = build_context(name, flavor, with_k8s=with_k8s)
     written: list[Path] = []
     for source in sorted(root.rglob("*")):
         if not source.is_file():
             continue
         relative = source.relative_to(root)
+        if not with_k8s and relative.parts[0] in _K8S_DIRS:
+            continue
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(engine.render(source.read_text(), context))

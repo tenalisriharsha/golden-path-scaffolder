@@ -36,3 +36,17 @@ def test_new_defaults_to_current_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert main(["new", "svc", "--flavor", "go"]) == 0
     assert (tmp_path / "svc" / "go.mod").is_file()
+
+
+def test_new_includes_k8s_manifests_by_default(tmp_path):
+    assert main(["new", "orders-api", "--flavor", "fastapi", "--output", str(tmp_path)]) == 0
+    assert (tmp_path / "orders-api" / "k8s" / "deployment.yaml").is_file()
+    assert (tmp_path / "orders-api" / "grafana" / "dashboard.json").is_file()
+
+
+def test_new_with_no_k8s_skips_platform_assets(tmp_path):
+    assert main(
+        ["new", "orders-api", "--flavor", "fastapi", "--output", str(tmp_path), "--no-k8s"]
+    ) == 0
+    assert not (tmp_path / "orders-api" / "k8s").exists()
+    assert not (tmp_path / "orders-api" / "grafana").exists()

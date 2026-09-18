@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from goldpath.flavors import get_flavor
@@ -32,7 +34,7 @@ def test_scaffold_fastapi_service(tmp_path):
     assert root.is_dir()
     assert (root / "app" / "main.py").is_file()
     assert (root / "requirements.txt").is_file()
-    assert len(written) == 10
+    assert len(written) == 13
 
     main = (root / "app" / "main.py").read_text()
     assert 'title="orders-api"' in main
@@ -74,6 +76,57 @@ def test_scaffold_fastapi_production_set(tmp_path):
     assert "{{" not in test_health
 
 
+@pytest.mark.parametrize("flavor_name,name", [("fastapi", "orders-api"), ("go", "payments")])
+def test_scaffold_platform_assets(tmp_path, flavor_name, name):
+    scaffold_service(name, get_flavor(flavor_name), tmp_path)
+    root = tmp_path / name
+    slug = name.replace("-", "_")
+
+    deployment = (root / "k8s" / "deployment.yaml").read_text()
+    assert f"name: {name}" in deployment
+    assert f"image: {name}:latest" in deployment
+    assert "livenessProbe" in deployment
+    assert "readinessProbe" in deployment
+    assert "resources" in deployment
+    assert "{{" not in deployment
+
+    service = (root / "k8s" / "service.yaml").read_text()
+    assert f"name: {name}" in service
+    assert "{{" not in service
+
+    dashboard = (root / "grafana" / "dashboard.json").read_text()
+    assert f"{slug}_requests_total" in dashboard
+    assert "{{" not in dashboard
+    json.loads(dashboard)  # must be valid JSON after rendering
+
+    readme = (root / "README.md").read_text()
+    assert "Deploy to Kubernetes" in readme
+    assert "kubectl apply -f k8s/" in readme
+    assert "grafana/dashboard.json" in readme
+
+
+@pytest.mark.parametrize("flavor_name", ["fastapi", "go"])
+def test_scaffold_without_k8s_skips_platform_assets(tmp_path, flavor_name):
+    written = scaffold_service("web", get_flavor(flavor_name), tmp_path, with_k8s=False)
+    root = tmp_path / "web"
+
+    assert not (root / "k8s").exists()
+    assert not (root / "grafana").exists()
+    assert all("k8s" not in p.parts and "grafana" not in p.parts for p in written)
+
+    readme = (root / "README.md").read_text()
+    assert "Deploy to Kubernetes" not in readme
+    assert "grafana/dashboard.json" not in readme
+    assert "{{" not in readme
+
+
+def test_build_context_with_k8s_flag_defaults_true():
+    context = build_context("orders-api", get_flavor("fastapi"))
+    assert context["with_k8s"] is True
+    context = build_context("orders-api", get_flavor("fastapi"), with_k8s=False)
+    assert context["with_k8s"] is False
+
+
 def test_scaffold_go_service(tmp_path):
     scaffold_service("payments", get_flavor("go"), tmp_path)
     root = tmp_path / "payments"
@@ -92,7 +145,7 @@ def test_scaffold_go_production_set(tmp_path):
     assert (root / ".github" / "workflows" / "ci.yml").is_file()
     assert (root / "cmd" / "server" / "main_test.go").is_file()
     assert (root / "go.sum").is_file()
-    assert len(written) == 8
+    assert len(written) == 11
 
     main = (root / "cmd" / "server" / "main.go").read_text()
     assert "promhttp" in main

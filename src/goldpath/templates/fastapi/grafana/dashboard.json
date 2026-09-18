@@ -1,0 +1,32 @@
+{
+  "title": "{{ service_name }} - Golden Path",
+  "uid": null,
+  "tags": ["golden-path", "{{ flavor }}"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate({{ service_slug }}_requests_total[5m])) by (status_code)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Total requests",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum({{ service_slug }}_requests_total)"
+        }
+      ]
+    }
+  ]
+}

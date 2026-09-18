@@ -27,7 +27,23 @@ manager, just the static binary).
 go vet ./...
 go test ./...
 ```
+{% if with_k8s %}
+## Deploy to Kubernetes
 
+```bash
+kubectl apply -f k8s/
+```
+
+`k8s/deployment.yaml` and `k8s/service.yaml` wire liveness and readiness
+probes to `{{ health_path }}` and set conservative CPU/memory requests and
+limits.
+
+## Observability
+
+Import `grafana/dashboard.json` into Grafana for a starter dashboard
+tracking request rate and total requests via the
+`{{ service_slug }}_requests_total` metric.
+{% endif %}
 ## CI
 
 `.github/workflows/ci.yml` vets, tests, builds, and builds the Docker image

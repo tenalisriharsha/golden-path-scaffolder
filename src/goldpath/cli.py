@@ -34,6 +34,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=".",
         help="Directory to create the service in (default: current directory).",
     )
+    new.add_argument(
+        "--no-k8s",
+        dest="with_k8s",
+        action="store_false",
+        help="Skip Kubernetes manifests and the Grafana dashboard.",
+    )
     return parser
 
 
@@ -46,7 +52,9 @@ def _cmd_list() -> int:
 def _cmd_new(args: argparse.Namespace) -> int:
     try:
         flavor = flavors.get_flavor(args.flavor)
-        written = scaffold.scaffold_service(args.name, flavor, Path(args.output))
+        written = scaffold.scaffold_service(
+            args.name, flavor, Path(args.output), with_k8s=args.with_k8s
+        )
     except (flavors.UnknownFlavorError, scaffold.ScaffoldError, TemplateError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
