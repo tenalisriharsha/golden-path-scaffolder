@@ -25,7 +25,7 @@ plan, and exactly where the build resumes next.
 | Prometheus metrics endpoint (FastAPI) | ✅ Phase 2 |
 | Dockerfile + GitHub Actions CI (Go) | ✅ Phase 3 |
 | Test setup + Prometheus metrics (Go) | ✅ Phase 3 |
-| Kubernetes manifests + Grafana dashboard JSON | Phase 4 |
+| Kubernetes manifests + Grafana dashboard JSON | ✅ Phase 4 |
 | Golden path philosophy docs | Phase 5 |
 
 ## Usage
@@ -34,6 +34,7 @@ plan, and exactly where the build resumes next.
 pip install -e .
 goldpath list                          # show available flavors
 goldpath new orders-api --flavor fastapi --output ./services
+goldpath new orders-api --flavor go --output ./services --no-k8s  # skip platform assets
 ```
 
 A generated FastAPI service now includes the full production set:
@@ -50,8 +51,13 @@ orders-api/
 ├── app/
 │   ├── __init__.py
 │   └── main.py              # /healthz + /metrics (Prometheus) endpoints
-└── tests/
-    └── test_health.py
+├── tests/
+│   └── test_health.py
+├── k8s/
+│   ├── deployment.yaml       # probes wired to /healthz, resource limits
+│   └── service.yaml
+└── grafana/
+    └── dashboard.json        # request rate + total requests panels
 ```
 
 Every request the generated service handles is counted in a
@@ -67,14 +73,25 @@ orders-api/
 ├── README.md
 ├── go.mod                   # module + github.com/prometheus/client_golang
 ├── go.sum
-└── cmd/server/
-    ├── main.go               # /healthz + /metrics (promhttp) endpoints
-    └── main_test.go
+├── cmd/server/
+│   ├── main.go               # /healthz + /metrics (promhttp) endpoints
+│   └── main_test.go
+├── k8s/
+│   ├── deployment.yaml       # probes wired to /healthz, resource limits
+│   └── service.yaml
+└── grafana/
+    └── dashboard.json        # request rate + total requests panels
 ```
 
 The Go and FastAPI production sets expose the same request-counter metric
 convention: `<service>_requests_total`, labeled by path, method, and status
-code.
+code — which is exactly what `grafana/dashboard.json` graphs.
+
+The Kubernetes manifests and Grafana dashboard are included by default; pass
+`--no-k8s` to skip them (for teams targeting a different platform). This is
+the first place the template engine's `{% if %}` conditional does real work:
+the generated `README.md`'s "Deploy to Kubernetes" and "Observability"
+sections are only rendered when `--no-k8s` is not set.
 
 ## Development
 

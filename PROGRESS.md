@@ -62,75 +62,89 @@ Design decisions:
   - [x] GitHub Actions CI workflow (vet, test, build)
   - [x] Go test setup inside the generated service
   - [x] Prometheus metrics endpoint (promhttp)
-- [ ] **Phase 4 — Platform assets** (Night 4)
-  - [ ] Kubernetes manifests (deployment, service, probes, resources)
-  - [ ] Grafana dashboard JSON per flavor
-  - [ ] Template conditionals exercised by real flavor options
+- [x] **Phase 4 — Platform assets** (Night 4)
+  - [x] Kubernetes manifests (deployment, service, probes, resources)
+  - [x] Grafana dashboard JSON per flavor
+  - [x] Template conditionals exercised by real flavor options
 - [ ] **Phase 5 — Docs & polish** (Night 5)
   - [ ] Golden path philosophy doc (docs/golden-path.md)
   - [ ] README quickstart with real generated output
   - [ ] Final test pass, example generation, release prep
 
-## Resume here (Night 4)
+## Resume here (Night 5)
 
-Phase 3 is complete and tested (38 tests, all passing). The Go flavor now
-generates the full production set, mirroring FastAPI's:
+Phase 4 is complete and tested (45 tests, all passing, up from 38). Both
+flavors now generate a `k8s/` and `grafana/` subtree in addition to the
+existing production set:
 
-- `Dockerfile` (multi-stage: `golang:1.25` builder → `gcr.io/distroless/
-  static-debian12` runtime, `CGO_ENABLED=0`, `EXPOSE {{ port }}`)
-- `.dockerignore`
-- `.github/workflows/ci.yml` (`go vet`, `go test`, `go build`,
-  `docker build`)
-- `go.mod` + `go.sum` pinning `github.com/prometheus/client_golang v1.24.1`
-  and its transitive deps — a real, verified dependency graph, not a stub
-- `cmd/server/main.go` gained a `countRequests` middleware (wraps
-  `http.Handler`, records status via a `statusRecorder`) feeding a
-  `promauto.NewCounterVec("<service_slug>_requests_total", ...)` labeled by
-  path/method/status_code, and a `GET /metrics` endpoint via
-  `promhttp.Handler()`
-- `cmd/server/main_test.go` exercising both `/healthz` and `/metrics` with
-  `httptest`
+- `k8s/deployment.yaml` — 2 replicas, container port from `{{ port }}`,
+  `livenessProbe`/`readinessProbe` both `httpGet` against `{{ health_path }}`
+  on the named `http` container port, and conservative
+  `resources.requests`/`limits` (100m/128Mi requests, 500m/256Mi limits).
+- `k8s/service.yaml` — ClusterIP-style Service selecting `app: {{
+  service_name }}`, forwarding port `{{ port }}` to the `http` container
+  port.
+- `grafana/dashboard.json` — a minimal but valid Grafana dashboard (schema
+  v39) with two panels (request-rate timeseries, total-requests stat) both
+  querying `{{ service_slug }}_requests_total`, the same counter the
+  service's own `/metrics` endpoint exposes.
 
-No new context variables needed — `service_slug` (added in Phase 2) already
-covers Go's underscore-only metric name requirement.
+These three files are byte-identical across the `fastapi` and `go` template
+trees — the golden path convention (image tag, probe wiring, metric name)
+is language-agnostic by design, so there was no reason for the manifests
+themselves to differ per flavor.
 
-Verified for real, not just by inspection: installed Go 1.27.1 via
-`brew install go` (network was available in this environment). Generated a
-service into `/tmp`, then ran `go vet ./...`, `go test ./... -v` (both
-`TestHealth` and `TestMetrics` pass), and `go build` — all using only the
-vendored `go.sum`, no `go mod tidy` needed at generation time. Also ran the
-built binary directly and curled `/healthz` and `/metrics` to confirm the
-counter increments and exposition format is correct. Rebuilt the wheel and
-confirmed all 8 Go template files — including the two dotfile paths
-(`.dockerignore`, `.github/workflows/ci.yml`) — are present, so the Phase 2
-packaging fix (`MANIFEST.in`) covers this flavor with no changes.
+**This is the phase that put the engine's `{% if %}` conditional to real
+use.** Added a `with_k8s: bool` context variable (`build_context(...,
+with_k8s=True)`, defaulting on) and a matching `--no-k8s` CLI flag.
+`scaffold_service` now skips the `k8s/` and `grafana/` subtrees entirely
+when `with_k8s` is false (checked via `relative.parts[0] in _K8S_DIRS`
+before rendering — the flag controls which files get written, not just
+their content). Both flavor `README.md` templates gained a `{% if
+with_k8s %}...{% endif %}` block ("Deploy to Kubernetes" / "Observability"
+sections) that only renders when the flag is on — so the conditional is
+exercised both at the file-tree level (scaffold.py) and inside a rendered
+template (engine.py), covering the two ways a real flavor option could
+need to behave.
 
-Design note: went with a hand-written `countRequests` middleware instead of
-reaching for a routing library, since `net/http`'s `http.ServeMux` (Go
-1.22+, method+path patterns) is enough — keeps the generated service's own
-dependency footprint to exactly one third-party module
-(`prometheus/client_golang`), same spirit as FastAPI pulling in only
-`prometheus-client`.
+Verified for real: rendered a service into `/tmp`, confirmed
+`grafana/dashboard.json` round-trips through `json.loads` (valid JSON,
+not just no leftover `{{`), and confirmed `k8s/deployment.yaml` /
+`service.yaml` parse cleanly with `yaml.safe_load` (PyYAML installed
+into `.venv` for this check only, not a project dependency) and report
+the correct `kind`. `kubectl apply --dry-run=client` was not usable in
+this environment — no live cluster, and this kubectl build insists on
+API-server discovery even with `--validate=false` — so live schema
+validation against the Kubernetes API is the one thing still unverified,
+same caveat class as Phase 3's untested Docker build.
 
-Docker build itself was not verified (no local Docker daemon in this
-environment) — only `go build` of the binary. If Docker becomes available,
-worth a one-time check that the distroless image actually runs the binary.
+New tests in `tests/test_scaffold.py`: a parametrized
+`test_scaffold_platform_assets` (both flavors) checking file presence,
+rendered probe/resource content, valid JSON dashboard, and the README's
+conditional section; `test_scaffold_without_k8s_skips_platform_assets`
+checking the flag actually removes `k8s/`/`grafana/` from the written-file
+list and the README section; `test_build_context_with_k8s_flag_defaults_true`.
+Also two new CLI tests for `--no-k8s`. Existing production-set tests'
+`len(written)` assertions bumped (fastapi 10→13, go 8→11) to account for
+the three new files per flavor.
 
-Tomorrow night:
+Tomorrow night — Phase 5 (final phase):
 
-1. Start Phase 4: Kubernetes manifests (`deployment.yaml`, `service.yaml`,
-   liveness/readiness probes wired to `{{ health_path }}`, resource
-   requests/limits) and a Grafana dashboard JSON per flavor, both driven off
-   the existing context variables (`service_name`, `service_slug`, `port`,
-   `health_path`).
-2. This is the first phase that will actually exercise the engine's
-   `{% if %}` conditionals for real (e.g. an optional `--with-k8s` or
-   flavor-specific dashboard panel differences) — so far every template has
-   been unconditional. Check whether `scaffold_service`/`build_context`
-   need a new boolean context flag, or whether flavor differences alone are
-   enough.
-3. Add tests in `tests/test_scaffold.py` for the k8s/Grafana file set per
-   flavor, following the same "assert file exists, assert rendered content,
-   assert no leftover `{{`" pattern as the two production-set tests.
-4. Keep manifests generic/portable — no cloud-specific annotations unless
-   flagged as an explicit option.
+1. Write `docs/golden-path.md`: the philosophy doc explaining *why* each
+   piece of the generated service exists (why probes wired to a real health
+   check, why a non-root/distroless runtime image, why a request counter by
+   default, why k8s manifests ship even though `--no-k8s` exists). This is
+   pure writing, no code changes — pull the "why" from the design notes
+   already scattered across this file's phase entries.
+2. README quickstart: consider replacing the hand-maintained tree diagrams
+   with real output of `goldpath new` run against a temp dir, so the
+   README can't drift from what the tool actually generates.
+3. Final test pass across both the tool's own suite and a fresh generated
+   service of each flavor (Python: pytest + ruff; Go: go vet + go test +
+   go build) — same manual verification pattern used in Phases 2 and 3.
+4. Write `DAILY_REPORT.md` summarizing all 5 nights: what got built, final
+   test counts, known limitations (no live Docker/kubectl verification in
+   this environment, template engine intentionally has no expression
+   language), and future ideas (more flavors, `--with-*` options beyond
+   k8s, a real end-to-end smoke test that builds+runs the Docker image).
+5. Only then flip `STATUS` to `COMPLETE` in this file.
