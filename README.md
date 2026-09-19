@@ -10,9 +10,11 @@ goldpath new orders-api --flavor fastapi
 
 ## Project Status
 
-**In active development** — built in public, one phase per night.
-See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
-plan, and exactly where the build resumes next.
+**Complete** — built in public over five nights. See
+[PROGRESS.md](PROGRESS.md) for the vision, architecture, and full phased
+build log, and [DAILY_REPORT.md](DAILY_REPORT.md) for a summary of what was
+built each night. [docs/golden-path.md](docs/golden-path.md) explains *why*
+each generated asset exists.
 
 ## What a generated service gets
 
@@ -26,7 +28,7 @@ plan, and exactly where the build resumes next.
 | Dockerfile + GitHub Actions CI (Go) | ✅ Phase 3 |
 | Test setup + Prometheus metrics (Go) | ✅ Phase 3 |
 | Kubernetes manifests + Grafana dashboard JSON | ✅ Phase 4 |
-| Golden path philosophy docs | Phase 5 |
+| Golden path philosophy docs | ✅ Phase 5 |
 
 ## Usage
 
@@ -113,3 +115,4 @@ to the *generated* services, not to this tool.
 - `src/goldpath/cli.py` — `goldpath` CLI
 - `src/goldpath/templates/` — one template tree per flavor
 - `tests/` — pytest suite
+- `docs/golden-path.md` — why each generated asset exists

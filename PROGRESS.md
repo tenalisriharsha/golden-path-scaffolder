@@ -1,6 +1,6 @@
 # PROGRESS — golden-path-scaffolder
 
-STATUS: IN_PROGRESS
+STATUS: COMPLETE
 
 ## Vision
 
@@ -66,14 +66,22 @@ Design decisions:
   - [x] Kubernetes manifests (deployment, service, probes, resources)
   - [x] Grafana dashboard JSON per flavor
   - [x] Template conditionals exercised by real flavor options
-- [ ] **Phase 5 — Docs & polish** (Night 5)
-  - [ ] Golden path philosophy doc (docs/golden-path.md)
-  - [ ] README quickstart with real generated output
-  - [ ] Final test pass, example generation, release prep
+- [x] **Phase 5 — Docs & polish** (Night 5)
+  - [x] Golden path philosophy doc (docs/golden-path.md)
+  - [x] README quickstart with real generated output
+  - [x] Final test pass, example generation, release prep
 
-## Resume here (Night 5)
+## Project complete
 
-Phase 4 is complete and tested (45 tests, all passing, up from 38). Both
+The project finished on Night 5 — all five phases done, 45 tests passing,
+`docs/golden-path.md` written, README accurate against real generated
+output, and `DAILY_REPORT.md` summarizing the full five-night build. There
+is no further phase to resume; see `DAILY_REPORT.md` for known limitations
+and future ideas if this project is picked back up.
+
+## Night 4 summary — platform assets
+
+Phase 4 added a `k8s/` and `grafana/` subtree to both
 flavors now generate a `k8s/` and `grafana/` subtree in addition to the
 existing production set:
 
@@ -128,23 +136,27 @@ Also two new CLI tests for `--no-k8s`. Existing production-set tests'
 `len(written)` assertions bumped (fastapi 10→13, go 8→11) to account for
 the three new files per flavor.
 
-Tomorrow night — Phase 5 (final phase):
+## Night 5 summary — docs & polish
 
-1. Write `docs/golden-path.md`: the philosophy doc explaining *why* each
-   piece of the generated service exists (why probes wired to a real health
-   check, why a non-root/distroless runtime image, why a request counter by
-   default, why k8s manifests ship even though `--no-k8s` exists). This is
-   pure writing, no code changes — pull the "why" from the design notes
-   already scattered across this file's phase entries.
-2. README quickstart: consider replacing the hand-maintained tree diagrams
-   with real output of `goldpath new` run against a temp dir, so the
-   README can't drift from what the tool actually generates.
-3. Final test pass across both the tool's own suite and a fresh generated
-   service of each flavor (Python: pytest + ruff; Go: go vet + go test +
-   go build) — same manual verification pattern used in Phases 2 and 3.
-4. Write `DAILY_REPORT.md` summarizing all 5 nights: what got built, final
-   test counts, known limitations (no live Docker/kubectl verification in
-   this environment, template engine intentionally has no expression
-   language), and future ideas (more flavors, `--with-*` options beyond
-   k8s, a real end-to-end smoke test that builds+runs the Docker image).
-5. Only then flip `STATUS` to `COMPLETE` in this file.
+Wrote `docs/golden-path.md`, an eight-section philosophy doc covering why
+the health check is real, why probes reuse it, why runtime images are
+non-root/distroless, why the request counter ships unconditionally, why
+k8s manifests default on with an opt-out, why the template engine has no
+expression language, why platform assets are byte-identical across
+flavors, and why the CLI is a plain testable function.
+
+Checked the README's hand-written tree diagrams against real `goldpath
+new` output (generated both flavors into `/tmp`) — they already matched
+exactly (13 files for FastAPI, 11 for Go), so no drift to fix, just
+verification.
+
+Ran the full manual verification pass called for in the plan: FastAPI
+generated service installed into a fresh venv, `pytest` (2 passed) and
+`ruff check .` (clean); Go generated service `go vet ./...`, `go build
+./...`, `go test ./...` (all clean); both flavors' `grafana/dashboard.json`
+round-tripped through `json.loads`. Docker and a live Kubernetes cluster
+remained unavailable in this environment, same caveat as Phases 3 and 4.
+
+Wrote `DAILY_REPORT.md` summarizing all five nights, final test counts,
+known limitations, and future ideas. Updated README's status table and
+added links to the new docs. Flipped `STATUS` to `COMPLETE` above.
