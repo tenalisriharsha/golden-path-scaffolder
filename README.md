@@ -26,6 +26,15 @@ live traffic — the interactive API docs it ships with, out of the box:
 
 ![The Grafana dashboard JSON generated alongside the service](docs/screenshots/05-grafana.png)
 
+The Go flavor is a genuinely different template, not a port of the FastAPI
+one — a second real generated service (`inventory-svc`), built and run:
+
+![goldpath new --flavor go, scaffolding 11 files](docs/screenshots/06-new-go.png)
+
+![go build && go test on the generated service, both green](docs/screenshots/07-go-build-test.png)
+
+![Real traffic on the Go service's own /metrics, via promhttp](docs/screenshots/08-go-metrics.png)
+
 </details>
 
 ## Project Status
