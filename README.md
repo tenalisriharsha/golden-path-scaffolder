@@ -8,6 +8,26 @@ service starts with the right defaults instead of a blank directory.
 goldpath new orders-api --flavor fastapi
 ```
 
+## Preview
+
+A real generated service (`orders-api`), installed, running, and taking
+live traffic — the interactive API docs it ships with, out of the box:
+
+![Generated service's Swagger UI: /healthz and /metrics](docs/screenshots/03-generated-service-docs.png)
+
+<details>
+<summary>More views</summary>
+
+![goldpath new, scaffolding 13 files](docs/screenshots/01-new.png)
+
+![goldpath list: available flavors](docs/screenshots/02-list.png)
+
+![Real traffic on the generated service's own /metrics endpoint](docs/screenshots/04-metrics.png)
+
+![The Grafana dashboard JSON generated alongside the service](docs/screenshots/05-grafana.png)
+
+</details>
+
 ## Project Status
 
 **Complete** — built in public over five nights. See
