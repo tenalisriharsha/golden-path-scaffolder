@@ -85,6 +85,9 @@ def scaffold_service(
         if not source.is_file():
             continue
         relative = source.relative_to(root)
+        # pip byte-compiles the packaged .py templates on install; skip that cache.
+        if "__pycache__" in relative.parts or source.suffix == ".pyc":
+            continue
         if not with_k8s and relative.parts[0] in _K8S_DIRS:
             continue
         destination = target / relative

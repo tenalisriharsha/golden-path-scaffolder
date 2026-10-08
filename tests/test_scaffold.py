@@ -197,3 +197,24 @@ def test_scaffold_returns_written_paths_sorted(tmp_path):
     written = scaffold_service("web", get_flavor("go"), tmp_path)
     assert written == sorted(written)
     assert all(p.is_file() for p in written)
+
+
+def test_scaffold_ignores_bytecode_in_installed_templates(tmp_path):
+    # A non-editable `pip install` byte-compiles every .py file in the package,
+    # including the FastAPI templates, leaving __pycache__/*.pyc beside them.
+    import compileall
+    import shutil
+
+    from goldpath import scaffold
+
+    templates = tmp_path / "templates"
+    shutil.copytree(scaffold._TEMPLATES_ROOT, templates)
+    assert compileall.compile_dir(templates / "fastapi", quiet=1)
+    assert list(templates.rglob("*.pyc"))
+
+    out = tmp_path / "out"
+    written = scaffold_service(
+        "orders-api", get_flavor("fastapi"), out, template_root=templates
+    )
+    assert len(written) == 13
+    assert not list((out / "orders-api").rglob("__pycache__"))
