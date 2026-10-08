@@ -18,11 +18,13 @@ def test_build_context_derives_metric_safe_slug():
 
 
 def test_validate_service_name_accepts_dns_style():
-    for name in ("api", "orders-api", "svc-2", "a" * 63):
+    for name in ("a", "api", "orders-api", "svc-2", "a--b", "a" * 63):
         assert validate_service_name(name) == name
 
 
-@pytest.mark.parametrize("name", ["", "API", "-api", "my_svc", "a b", "a" * 64])
+@pytest.mark.parametrize(
+    "name", ["", "API", "-api", "api-", "api\n", "my_svc", "a b", "a" * 64, "a" * 62 + "-"]
+)
 def test_validate_service_name_rejects_invalid(name):
     with pytest.raises(ScaffoldError, match="invalid service name"):
         validate_service_name(name)

@@ -10,7 +10,7 @@ from .flavors import Flavor
 
 __all__ = ["ScaffoldError", "scaffold_service", "validate_service_name"]
 
-_NAME = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
+_NAME = re.compile(r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 _TEMPLATES_ROOT = Path(__file__).resolve().parent / "templates"
 
@@ -22,13 +22,15 @@ class ScaffoldError(Exception):
 def validate_service_name(name: str) -> str:
     """Return *name* if it is a valid service name, else raise ScaffoldError.
 
-    Valid names are lowercase DNS-label style: start with a letter, then
-    letters, digits, or hyphens (max 63 chars) — safe for k8s and image names.
+    Valid names are lowercase DNS-label style: start with a letter, end with
+    a letter or digit, with letters, digits, or hyphens in between (max 63
+    chars) — safe for k8s and image names.
     """
-    if not _NAME.match(name):
+    if not _NAME.fullmatch(name):
         raise ScaffoldError(
             f"invalid service name {name!r}: use lowercase letters, digits and "
-            "hyphens, starting with a letter (max 63 chars)"
+            "hyphens, starting with a letter and not ending with a hyphen "
+            "(max 63 chars)"
         )
     return name
 
