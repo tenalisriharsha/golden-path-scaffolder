@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 
 from . import engine
@@ -83,17 +84,23 @@ def scaffold_service(
 
     context = build_context(name, flavor, with_k8s=with_k8s)
     written: list[Path] = []
-    for source in sorted(root.rglob("*")):
-        if not source.is_file():
-            continue
-        relative = source.relative_to(root)
-        # pip byte-compiles the packaged .py templates on install; skip that cache.
-        if "__pycache__" in relative.parts or source.suffix == ".pyc":
-            continue
-        if not with_k8s and relative.parts[0] in _K8S_DIRS:
-            continue
-        destination = target / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(engine.render(source.read_text(), context))
-        written.append(destination)
+    target.mkdir(parents=True)
+    try:
+        for source in sorted(root.rglob("*")):
+            if not source.is_file():
+                continue
+            relative = source.relative_to(root)
+            # pip byte-compiles the packaged .py templates on install; skip that cache.
+            if "__pycache__" in relative.parts or source.suffix == ".pyc":
+                continue
+            if not with_k8s and relative.parts[0] in _K8S_DIRS:
+                continue
+            destination = target / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(engine.render(source.read_text(), context))
+            written.append(destination)
+    except Exception:
+        # target was created above by this call, so everything under it is ours.
+        shutil.rmtree(target, ignore_errors=True)
+        raise
     return sorted(written)

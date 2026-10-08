@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from goldpath import engine
 from goldpath.flavors import get_flavor
 from goldpath.scaffold import (
     ScaffoldError,
@@ -220,3 +221,16 @@ def test_scaffold_ignores_bytecode_in_installed_templates(tmp_path):
     )
     assert len(written) == 13
     assert not list((out / "orders-api").rglob("__pycache__"))
+
+
+def test_scaffold_failure_leaves_no_partial_service(tmp_path):
+    templates = tmp_path / "templates" / "go"
+    templates.mkdir(parents=True)
+    (templates / "a.txt").write_text("{{ service_name }}")
+    (templates / "b.txt").write_text("{{ no_such_var }}")
+
+    out = tmp_path / "out"
+    with pytest.raises(engine.TemplateError):
+        scaffold_service("web", get_flavor("go"), out, template_root=tmp_path / "templates")
+    # A retry must not be blocked by a half-written directory.
+    assert not (out / "web").exists()
