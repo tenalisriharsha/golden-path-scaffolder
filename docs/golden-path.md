@@ -115,9 +115,10 @@ written in."
 ## Why the CLI is a plain function, not a subprocess-only script
 
 `main(argv: list[str] | None = None) -> int` in `cli.py` takes an argument
-list and returns an exit code — it never calls `sys.exit()` internally and
+list and returns an exit code — apart from argparse's own usage errors
+(which exit with status 2), it never calls `sys.exit()` internally and
 never reaches for global state. That's what let the test suite exercise
-every CLI path (`goldpath list`, `goldpath new`, `--no-k8s`, error cases)
+the CLI paths (`goldpath list`, `goldpath new`, `--no-k8s`, error cases)
 by calling `main()` directly and asserting on its return value and captured
 output, without spawning a subprocess per test. A scaffolder that's
 supposed to model good engineering practice should itself be built in a way

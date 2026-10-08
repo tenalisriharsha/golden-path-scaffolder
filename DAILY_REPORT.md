@@ -63,7 +63,9 @@ Updated README.md's status table and added a link to the new docs.
 - Both generated flavors verified end-to-end as above.
 - Zero runtime dependencies in the scaffolder itself — only the generated
   services carry dependencies (`fastapi`/`uvicorn`/`prometheus-client` for
-  Python, `client_golang` for Go), and those are pinned in the templates.
+  Python, `client_golang` for Go). The Go dependencies are pinned via
+  `go.mod`/`go.sum`; the Python ones are minimum-version ranges (`>=`), not
+  pins.
 
 ## Known limitations
 
