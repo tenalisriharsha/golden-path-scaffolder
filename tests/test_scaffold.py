@@ -159,6 +159,8 @@ def test_scaffold_go_production_set(tmp_path):
     dockerfile = (root / "Dockerfile").read_text()
     assert "FROM golang:1.25 AS builder" in dockerfile
     assert "distroless" in dockerfile
+    # The default distroless tag runs as uid 0; the docs promise a non-root image.
+    assert "FROM gcr.io/distroless/static-debian12:nonroot" in dockerfile
     assert "EXPOSE 8080" in dockerfile
     assert "{{" not in dockerfile
 

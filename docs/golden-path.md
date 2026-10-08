@@ -41,8 +41,10 @@ app generation share one template context (`build_context` in
 The FastAPI Dockerfile is a two-stage build: dependencies compile in a
 `python:3.12-slim` builder stage, then only the installed packages and app
 code copy into a fresh slim stage running as a non-root `appuser`. The Go
-Dockerfile goes further — `distroless/static-debian12`, a runtime image
-with no shell, no package manager, nothing but the compiled binary. Neither
+Dockerfile goes further — `distroless/static-debian12:nonroot`, a runtime
+image with no shell, no package manager, nothing but the compiled binary,
+running as the unprivileged `nonroot` user (the untagged distroless image
+runs as root). Neither
 of these is exotic; they're standard container hardening that every
 production image should have and that's tedious enough to configure by hand
 that services often ship without it. Baking it into the template means the
