@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 
 from . import engine
@@ -10,7 +11,7 @@ from .flavors import Flavor
 
 __all__ = ["ScaffoldError", "scaffold_service", "validate_service_name"]
 
-_NAME = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
+_NAME = re.compile(r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 _TEMPLATES_ROOT = Path(__file__).resolve().parent / "templates"
 
@@ -22,13 +23,15 @@ class ScaffoldError(Exception):
 def validate_service_name(name: str) -> str:
     """Return *name* if it is a valid service name, else raise ScaffoldError.
 
-    Valid names are lowercase DNS-label style: start with a letter, then
-    letters, digits, or hyphens (max 63 chars) — safe for k8s and image names.
+    Valid names are lowercase DNS-label style: start with a letter, end with
+    a letter or digit, with letters, digits, or hyphens in between (max 63
+    chars) — safe for k8s and image names.
     """
-    if not _NAME.match(name):
+    if not _NAME.fullmatch(name):
         raise ScaffoldError(
             f"invalid service name {name!r}: use lowercase letters, digits and "
-            "hyphens, starting with a letter (max 63 chars)"
+            "hyphens, starting with a letter and not ending with a hyphen "
+            "(max 63 chars)"
         )
     return name
 
@@ -81,14 +84,23 @@ def scaffold_service(
 
     context = build_context(name, flavor, with_k8s=with_k8s)
     written: list[Path] = []
-    for source in sorted(root.rglob("*")):
-        if not source.is_file():
-            continue
-        relative = source.relative_to(root)
-        if not with_k8s and relative.parts[0] in _K8S_DIRS:
-            continue
-        destination = target / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(engine.render(source.read_text(), context))
-        written.append(destination)
+    target.mkdir(parents=True)
+    try:
+        for source in sorted(root.rglob("*")):
+            if not source.is_file():
+                continue
+            relative = source.relative_to(root)
+            # pip byte-compiles the packaged .py templates on install; skip that cache.
+            if "__pycache__" in relative.parts or source.suffix == ".pyc":
+                continue
+            if not with_k8s and relative.parts[0] in _K8S_DIRS:
+                continue
+            destination = target / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(engine.render(source.read_text(), context))
+            written.append(destination)
+    except Exception:
+        # target was created above by this call, so everything under it is ours.
+        shutil.rmtree(target, ignore_errors=True)
+        raise
     return sorted(written)

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install -e . pytest
+      - name: Test
+        run: pytest
+
+  wheel-smoke:
+    # A non-editable install byte-compiles the templates; make sure the
+    # installed tool still generates both flavors.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and install wheel
+        run: |
+          pip install build
+          python -m build --wheel
+          pip install dist/*.whl
+      - name: Generate both flavors
+        working-directory: ${{ runner.temp }}
+        run: |
+          goldpath list
+          goldpath new orders-api --flavor fastapi
+          goldpath new inventory-svc --flavor go

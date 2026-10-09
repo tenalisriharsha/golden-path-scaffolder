@@ -18,6 +18,10 @@ live traffic — the interactive API docs it ships with, out of the box:
 <details>
 <summary>More views</summary>
 
+The terminal images below are produced by
+[`docs/screenshots/capture.py`](docs/screenshots/capture.py), which runs
+each displayed command and renders its real output and exit code.
+
 ![goldpath new, scaffolding 13 files](docs/screenshots/01-new.png)
 
 ![goldpath list: available flavors](docs/screenshots/02-list.png)

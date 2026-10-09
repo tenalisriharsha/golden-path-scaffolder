@@ -55,7 +55,7 @@ def _cmd_new(args: argparse.Namespace) -> int:
         written = scaffold.scaffold_service(
             args.name, flavor, Path(args.output), with_k8s=args.with_k8s
         )
-    except (flavors.UnknownFlavorError, scaffold.ScaffoldError, TemplateError) as exc:
+    except (flavors.UnknownFlavorError, scaffold.ScaffoldError, TemplateError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"Scaffolded {args.name!r} ({flavor.name}) with {len(written)} files:")

@@ -50,3 +50,12 @@ def test_new_with_no_k8s_skips_platform_assets(tmp_path):
     ) == 0
     assert not (tmp_path / "orders-api" / "k8s").exists()
     assert not (tmp_path / "orders-api" / "grafana").exists()
+
+
+def test_new_with_output_that_is_a_file_fails_cleanly(tmp_path, capsys):
+    not_a_dir = tmp_path / "afile"
+    not_a_dir.write_text("")
+    assert main(["new", "web", "--flavor", "go", "--output", str(not_a_dir)]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: ")
+    assert "Not a directory" in err

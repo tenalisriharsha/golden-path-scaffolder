@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from goldpath import engine
 from goldpath.flavors import get_flavor
 from goldpath.scaffold import (
     ScaffoldError,
@@ -18,11 +19,13 @@ def test_build_context_derives_metric_safe_slug():
 
 
 def test_validate_service_name_accepts_dns_style():
-    for name in ("api", "orders-api", "svc-2", "a" * 63):
+    for name in ("a", "api", "orders-api", "svc-2", "a--b", "a" * 63):
         assert validate_service_name(name) == name
 
 
-@pytest.mark.parametrize("name", ["", "API", "-api", "my_svc", "a b", "a" * 64])
+@pytest.mark.parametrize(
+    "name", ["", "API", "-api", "api-", "api\n", "my_svc", "a b", "a" * 64, "a" * 62 + "-"]
+)
 def test_validate_service_name_rejects_invalid(name):
     with pytest.raises(ScaffoldError, match="invalid service name"):
         validate_service_name(name)
@@ -156,6 +159,8 @@ def test_scaffold_go_production_set(tmp_path):
     dockerfile = (root / "Dockerfile").read_text()
     assert "FROM golang:1.25 AS builder" in dockerfile
     assert "distroless" in dockerfile
+    # The default distroless tag runs as uid 0; the docs promise a non-root image.
+    assert "FROM gcr.io/distroless/static-debian12:nonroot" in dockerfile
     assert "EXPOSE 8080" in dockerfile
     assert "{{" not in dockerfile
 
@@ -197,3 +202,37 @@ def test_scaffold_returns_written_paths_sorted(tmp_path):
     written = scaffold_service("web", get_flavor("go"), tmp_path)
     assert written == sorted(written)
     assert all(p.is_file() for p in written)
+
+
+def test_scaffold_ignores_bytecode_in_installed_templates(tmp_path):
+    # A non-editable `pip install` byte-compiles every .py file in the package,
+    # including the FastAPI templates, leaving __pycache__/*.pyc beside them.
+    import compileall
+    import shutil
+
+    from goldpath import scaffold
+
+    templates = tmp_path / "templates"
+    shutil.copytree(scaffold._TEMPLATES_ROOT, templates)
+    assert compileall.compile_dir(templates / "fastapi", quiet=1)
+    assert list(templates.rglob("*.pyc"))
+
+    out = tmp_path / "out"
+    written = scaffold_service(
+        "orders-api", get_flavor("fastapi"), out, template_root=templates
+    )
+    assert len(written) == 13
+    assert not list((out / "orders-api").rglob("__pycache__"))
+
+
+def test_scaffold_failure_leaves_no_partial_service(tmp_path):
+    templates = tmp_path / "templates" / "go"
+    templates.mkdir(parents=True)
+    (templates / "a.txt").write_text("{{ service_name }}")
+    (templates / "b.txt").write_text("{{ no_such_var }}")
+
+    out = tmp_path / "out"
+    with pytest.raises(engine.TemplateError):
+        scaffold_service("web", get_flavor("go"), out, template_root=tmp_path / "templates")
+    # A retry must not be blocked by a half-written directory.
+    assert not (out / "web").exists()

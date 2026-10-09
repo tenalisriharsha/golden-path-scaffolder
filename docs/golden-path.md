@@ -41,8 +41,10 @@ app generation share one template context (`build_context` in
 The FastAPI Dockerfile is a two-stage build: dependencies compile in a
 `python:3.12-slim` builder stage, then only the installed packages and app
 code copy into a fresh slim stage running as a non-root `appuser`. The Go
-Dockerfile goes further — `distroless/static-debian12`, a runtime image
-with no shell, no package manager, nothing but the compiled binary. Neither
+Dockerfile goes further — `distroless/static-debian12:nonroot`, a runtime
+image with no shell, no package manager, nothing but the compiled binary,
+running as the unprivileged `nonroot` user (the untagged distroless image
+runs as root). Neither
 of these is exotic; they're standard container hardening that every
 production image should have and that's tedious enough to configure by hand
 that services often ship without it. Baking it into the template means the
@@ -113,9 +115,10 @@ written in."
 ## Why the CLI is a plain function, not a subprocess-only script
 
 `main(argv: list[str] | None = None) -> int` in `cli.py` takes an argument
-list and returns an exit code — it never calls `sys.exit()` internally and
+list and returns an exit code — apart from argparse's own usage errors
+(which exit with status 2), it never calls `sys.exit()` internally and
 never reaches for global state. That's what let the test suite exercise
-every CLI path (`goldpath list`, `goldpath new`, `--no-k8s`, error cases)
+the CLI paths (`goldpath list`, `goldpath new`, `--no-k8s`, error cases)
 by calling `main()` directly and asserting on its return value and captured
 output, without spawning a subprocess per test. A scaffolder that's
 supposed to model good engineering practice should itself be built in a way
