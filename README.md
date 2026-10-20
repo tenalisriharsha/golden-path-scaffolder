@@ -1,5 +1,7 @@
 # golden-path-scaffolder
 
+[![CI](https://github.com/tenalisriharsha/golden-path-scaffolder/actions/workflows/ci.yml/badge.svg)](https://github.com/tenalisriharsha/golden-path-scaffolder/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 One command scaffolds a production-ready service on the **golden path** —
 the same kind of internal tool platform teams build so that every new
 service starts with the right defaults instead of a blank directory.
@@ -40,14 +42,6 @@ one — a second real generated service (`inventory-svc`), built and run:
 ![Real traffic on the Go service's own /metrics, via promhttp](docs/screenshots/08-go-metrics.png)
 
 </details>
-
-## Project Status
-
-**Complete** — built in public over five nights. See
-[PROGRESS.md](PROGRESS.md) for the vision, architecture, and full phased
-build log, and [DAILY_REPORT.md](DAILY_REPORT.md) for a summary of what was
-built each night. [docs/golden-path.md](docs/golden-path.md) explains *why*
-each generated asset exists.
 
 ## What a generated service gets
 
@@ -149,3 +143,11 @@ to the *generated* services, not to this tool.
 - `src/goldpath/templates/` — one template tree per flavor
 - `tests/` — pytest suite
 - `docs/golden-path.md` — why each generated asset exists
+
+## Status
+
+Complete at version 0.1. The phase-by-phase build history is in [PROGRESS.md](PROGRESS.md) and known limitations and ideas for next steps are in [DAILY_REPORT.md](DAILY_REPORT.md). [docs/golden-path.md](docs/golden-path.md) explains why each generated asset exists.
+
+## License
+
+[MIT](LICENSE)
