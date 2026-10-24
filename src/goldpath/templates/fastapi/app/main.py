@@ -15,13 +15,17 @@ REQUEST_COUNT = Counter(
 
 @app.middleware("http")
 async def count_requests(request: Request, call_next):
-    response = await call_next(request)
-    REQUEST_COUNT.labels(
-        path=request.url.path,
-        method=request.method,
-        status_code=response.status_code,
-    ).inc()
-    return response
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        REQUEST_COUNT.labels(
+            path=request.url.path,
+            method=request.method,
+            status_code=status_code,
+        ).inc()
 
 
 @app.get("{{ health_path }}")

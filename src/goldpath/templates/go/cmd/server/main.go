@@ -33,8 +33,14 @@ func (r *statusRecorder) WriteHeader(status int) {
 func countRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		defer func() {
+			if err := recover(); err != nil {
+				rec.status = http.StatusInternalServerError
+				http.Error(rec, "internal server error", http.StatusInternalServerError)
+			}
+			requestsTotal.WithLabelValues(r.URL.Path, r.Method, strconv.Itoa(rec.status)).Inc()
+		}()
 		next.ServeHTTP(rec, r)
-		requestsTotal.WithLabelValues(r.URL.Path, r.Method, strconv.Itoa(rec.status)).Inc()
 	})
 }
 
