@@ -236,3 +236,17 @@ def test_scaffold_failure_leaves_no_partial_service(tmp_path):
         scaffold_service("web", get_flavor("go"), out, template_root=tmp_path / "templates")
     # A retry must not be blocked by a half-written directory.
     assert not (out / "web").exists()
+
+
+def test_scaffold_rejects_a_missing_output_parent(tmp_path):
+    missing = tmp_path / "sevrices" / "nested"
+    with pytest.raises(ScaffoldError, match="neither does its parent"):
+        scaffold_service("orders-api", get_flavor("fastapi"), missing)
+    assert not (tmp_path / "sevrices").exists()
+
+
+def test_scaffold_still_creates_a_single_missing_output_dir(tmp_path):
+    out = tmp_path / "services"
+    written = scaffold_service("orders-api", get_flavor("fastapi"), out)
+    assert (out / "orders-api" / "requirements.txt").is_file()
+    assert len(written) == 13
