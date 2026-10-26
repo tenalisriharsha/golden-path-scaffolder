@@ -37,7 +37,12 @@ kubectl apply -f k8s/
 
 `k8s/deployment.yaml` and `k8s/service.yaml` wire liveness and readiness
 probes to `{{ health_path }}` and set conservative CPU/memory requests and
-limits.
+limits. The deployment uses `imagePullPolicy: IfNotPresent` so a locally
+built `{{ service_name }}:latest` image is not re-pulled from a registry.
+On local clusters (minikube, kind, Docker Desktop), load the image into the
+cluster first so it is present before applying the manifests, e.g.
+`minikube image load {{ service_name }}:latest` or
+`kind load docker-image {{ service_name }}:latest`.
 
 ## Observability
 
