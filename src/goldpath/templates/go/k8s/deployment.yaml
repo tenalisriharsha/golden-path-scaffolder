@@ -17,6 +17,7 @@ spec:
       containers:
         - name: {{ service_name }}
           image: {{ service_name }}:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: {{ port }}

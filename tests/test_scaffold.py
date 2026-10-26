@@ -88,6 +88,7 @@ def test_scaffold_platform_assets(tmp_path, flavor_name, name):
     deployment = (root / "k8s" / "deployment.yaml").read_text()
     assert f"name: {name}" in deployment
     assert f"image: {name}:latest" in deployment
+    assert "imagePullPolicy: IfNotPresent" in deployment
     assert "livenessProbe" in deployment
     assert "readinessProbe" in deployment
     assert "resources" in deployment
