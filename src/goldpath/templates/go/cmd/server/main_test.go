@@ -64,3 +64,39 @@ func TestCounterIncrementsOnPanic(t *testing.T) {
 		t.Fatalf("expected metrics output to include status_code 500, got: %s", metricsRec.Body.String())
 	}
 }
+
+func TestCounterMatchesClientStatusOnPartialWriteThenPanic(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /partial", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("partial body"))
+		panic("boom after write")
+	})
+	handler := countRequests(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/partial", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected client-visible status 200, got %d", rec.Code)
+	}
+	if rec.Body.String() != "partial body" {
+		t.Fatalf("expected body to be untouched by the panic recovery, got: %q", rec.Body.String())
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	countRequests(newMux()).ServeHTTP(metricsRec, metricsReq)
+
+	if !strings.Contains(metricsRec.Body.String(), `path="/partial"`) {
+		t.Fatalf("expected metrics output to include /partial path, got: %s", metricsRec.Body.String())
+	}
+	for _, line := range strings.Split(metricsRec.Body.String(), "\n") {
+		if strings.Contains(line, `path="/partial"`) {
+			if !strings.Contains(line, `status_code="200"`) {
+				t.Fatalf("expected status_code 200 for /partial, got metric line: %s", line)
+			}
+		}
+	}
+}

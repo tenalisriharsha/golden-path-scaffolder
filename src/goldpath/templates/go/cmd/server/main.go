@@ -22,12 +22,24 @@ var requestsTotal = promauto.NewCounterVec(
 
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status      int
+	wroteHeader bool
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
+	if r.wroteHeader {
+		return
+	}
+	r.wroteHeader = true
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+	return r.ResponseWriter.Write(b)
 }
 
 func countRequests(next http.Handler) http.Handler {
@@ -35,8 +47,12 @@ func countRequests(next http.Handler) http.Handler {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
 			if err := recover(); err != nil {
-				rec.status = http.StatusInternalServerError
-				http.Error(rec, "internal server error", http.StatusInternalServerError)
+				if !rec.wroteHeader {
+					rec.status = http.StatusInternalServerError
+					http.Error(rec, "internal server error", http.StatusInternalServerError)
+				} else {
+					log.Printf("panic after response started: %v", err)
+				}
 			}
 			requestsTotal.WithLabelValues(r.URL.Path, r.Method, strconv.Itoa(rec.status)).Inc()
 		}()
