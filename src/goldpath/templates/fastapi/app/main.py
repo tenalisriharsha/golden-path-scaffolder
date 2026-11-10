@@ -21,8 +21,10 @@ async def count_requests(request: Request, call_next):
         status_code = response.status_code
         return response
     finally:
+        route = request.scope.get("route")
+        path_label = getattr(route, "path", None) or "other"
         REQUEST_COUNT.labels(
-            path=request.url.path,
+            path=path_label,
             method=request.method,
             status_code=status_code,
         ).inc()
