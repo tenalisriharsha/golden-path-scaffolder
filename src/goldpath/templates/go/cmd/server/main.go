@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -42,9 +43,10 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-func countRequests(next http.Handler) http.Handler {
+func countRequests(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		routeLabel := routePattern(mux, r)
 		defer func() {
 			if err := recover(); err != nil {
 				if !rec.wroteHeader {
@@ -54,10 +56,24 @@ func countRequests(next http.Handler) http.Handler {
 					log.Printf("panic after response started: %v", err)
 				}
 			}
-			requestsTotal.WithLabelValues(r.URL.Path, r.Method, strconv.Itoa(rec.status)).Inc()
+			requestsTotal.WithLabelValues(routeLabel, r.Method, strconv.Itoa(rec.status)).Inc()
 		}()
-		next.ServeHTTP(rec, r)
+		mux.ServeHTTP(rec, r)
 	})
+}
+
+// routePattern returns the matched route template (e.g. "/users/{id}") rather
+// than the raw request path, so unmatched paths don't create unbounded metric
+// cardinality. Unmatched requests are labeled "other".
+func routePattern(mux *http.ServeMux, r *http.Request) string {
+	_, pattern := mux.Handler(r)
+	if pattern == "" {
+		return "other"
+	}
+	if idx := strings.IndexByte(pattern, ' '); idx != -1 {
+		pattern = pattern[idx+1:]
+	}
+	return pattern
 }
 
 func health(w http.ResponseWriter, _ *http.Request) {

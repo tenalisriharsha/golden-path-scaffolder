@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -98,5 +99,46 @@ func TestCounterMatchesClientStatusOnPartialWriteThenPanic(t *testing.T) {
 				t.Fatalf("expected status_code 200 for /partial, got metric line: %s", line)
 			}
 		}
+	}
+}
+
+func TestMetricCardinalityBoundedForUnmatchedPaths(t *testing.T) {
+	handler := countRequests(newMux())
+
+	randomPaths := []string{
+		"/users/12345",
+		"/scan/wp-admin.php",
+		"/api/v2/orders/abc-def-ghi",
+		"/nonexistent-" + strings.Repeat("x", 40),
+	}
+	for _, p := range randomPaths {
+		req := httptest.NewRequest(http.MethodGet, p, nil)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, metricsReq)
+
+	pathLabel := regexp.MustCompile(`path="([^"]*)"`)
+	counterName := "{{ service_slug }}_requests_total"
+	leaked := map[string]bool{}
+	for _, line := range strings.Split(rec.Body.String(), "\n") {
+		if !strings.HasPrefix(line, counterName) {
+			continue
+		}
+		match := pathLabel.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		for _, p := range randomPaths {
+			if match[1] == p {
+				leaked[p] = true
+			}
+		}
+	}
+
+	if len(leaked) != 0 {
+		t.Fatalf("unmatched request paths must not appear verbatim as metric labels (unbounded cardinality): %v", leaked)
 	}
 }
