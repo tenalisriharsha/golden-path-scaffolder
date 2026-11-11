@@ -63,7 +63,7 @@ one — a second real generated service (`inventory-svc`), built and run:
 pip install -e .
 goldpath list                          # show available flavors
 goldpath new orders-api --flavor fastapi --output ./services
-goldpath new orders-api --flavor go --output ./services --no-k8s  # skip platform assets
+goldpath new inventory-svc --flavor go --output ./services --no-k8s  # skip platform assets
 ```
 
 A generated FastAPI service now includes the full production set:
