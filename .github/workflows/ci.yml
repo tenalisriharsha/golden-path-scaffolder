@@ -56,3 +56,24 @@ jobs:
           go vet ./...
           go build ./...
           go test ./...
+      - name: Build the Docker images for both generated services
+        run: |
+          docker build -t orders-api:latest ${{ runner.temp }}/orders-api
+          docker build -t inventory-svc:latest ${{ runner.temp }}/inventory-svc
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+      - name: Create a local kind cluster
+        run: kind create cluster --name golden-path-ci --wait 120s
+      - name: Load the images into the kind cluster
+        run: |
+          kind load docker-image orders-api:latest --name golden-path-ci
+          kind load docker-image inventory-svc:latest --name golden-path-ci
+      - name: Apply the generated k8s manifests and wait for Ready pods
+        run: |
+          kubectl apply -f ${{ runner.temp }}/orders-api/k8s/
+          kubectl apply -f ${{ runner.temp }}/inventory-svc/k8s/
+          kubectl rollout status deployment/orders-api --timeout=120s
+          kubectl rollout status deployment/inventory-svc --timeout=120s

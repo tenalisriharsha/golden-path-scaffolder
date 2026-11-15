@@ -123,3 +123,41 @@ by calling `main()` directly and asserting on its return value and captured
 output, without spawning a subprocess per test. A scaffolder that's
 supposed to model good engineering practice should itself be built in a way
 that's fast and easy to test.
+
+## Verifying the generated Docker image and Kubernetes manifests on a real cluster
+
+Both the templates and the "wheel-smoke" CI job stop at `go build`/`pytest`
+on the *host* — they never actually build the Docker image or deploy it.
+The commands below do that end to end, against a real `kind` cluster, and
+are also what `wheel-smoke` runs in CI:
+
+```bash
+goldpath new orders-api --flavor fastapi
+goldpath new inventory-svc --flavor go
+
+docker build -t orders-api:latest orders-api
+docker build -t inventory-svc:latest inventory-svc
+
+kind create cluster --name golden-path-ci --wait 120s
+kind load docker-image orders-api:latest --name golden-path-ci
+kind load docker-image inventory-svc:latest --name golden-path-ci
+
+kubectl apply -f orders-api/k8s/
+kubectl apply -f inventory-svc/k8s/
+kubectl rollout status deployment/orders-api --timeout=120s
+kubectl rollout status deployment/inventory-svc --timeout=120s
+```
+
+Once both deployments report "successfully rolled out," `kubectl get pods`
+shows both replicas of each service `1/1 Running` — the liveness and
+readiness probes wired to `{{ health_path }}` are what let the rollout
+reach that state at all; a crashing container or a probe pointed at the
+wrong path would leave it waiting until the `--timeout` and failing CI.
+Port-forwarding to either `Service` and curling it confirms the rest of
+the contract holds through the cluster, not just on the host:
+
+```bash
+kubectl port-forward svc/orders-api 8000:8000 &
+curl localhost:8000/healthz   # {"status":"ok","service":"orders-api"}
+curl localhost:8000/metrics   # Prometheus exposition format
+```
