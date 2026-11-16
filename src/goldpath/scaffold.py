@@ -78,7 +78,16 @@ def scaffold_service(
     if not root.is_dir():
         raise ScaffoldError(f"template tree for flavor {flavor.name!r} not found at {root}")
 
-    target = Path(output_dir) / name
+    base = Path(output_dir)
+    # Creating the output directory itself is fine; a missing parent means a
+    # typo'd --output would grow an arbitrarily deep tree without a word.
+    if not base.is_dir() and not base.parent.is_dir():
+        raise ScaffoldError(
+            f"output directory {base} does not exist and neither does its parent {base.parent}; "
+            "create the parent directory first"
+        )
+
+    target = base / name
     if target.exists():
         raise ScaffoldError(f"target directory already exists: {target}")
 
